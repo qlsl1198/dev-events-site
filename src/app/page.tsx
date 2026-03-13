@@ -19,6 +19,7 @@ function serializeEvent(e: DevEvent) {
 export default async function Home() {
   let ongoing: ReturnType<typeof serializeEvent>[] = [];
   let ended: ReturnType<typeof serializeEvent>[] = [];
+  let lastUpdated = new Date().toISOString();
   let error = '';
 
   try {
@@ -27,18 +28,30 @@ export default async function Home() {
     const split = splitByEndDate(events);
     ongoing = split.ongoing.map(serializeEvent);
     ended = split.ended.map(serializeEvent);
+    lastUpdated = new Date().toISOString();
   } catch (e) {
     console.error('Failed to fetch events:', e);
     error = '이벤트 정보를 불러오는데 실패했습니다.';
   }
 
+  const formattedDate = new Date(lastUpdated).toLocaleString('ko-KR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+
   return (
     <div className="min-h-screen bg-zinc-50 font-sans dark:bg-zinc-950">
       <header className="border-b border-zinc-200 bg-white py-6 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto max-w-4xl px-4">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4">
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
             개발자 행사
           </h1>
+          <time
+            dateTime={lastUpdated}
+            className="text-sm text-zinc-500 dark:text-zinc-400"
+          >
+            {formattedDate} 갱신
+          </time>
         </div>
       </header>
 
