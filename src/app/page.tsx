@@ -5,6 +5,7 @@ import {
   type DevEvent,
 } from '@/lib/crawler';
 import { EventList } from '@/components/EventList';
+import { LastUpdated } from '@/components/LastUpdated';
 
 export const revalidate = 86400; // 24시간마다 재검증 (매일 업데이트)
 
@@ -19,7 +20,9 @@ function serializeEvent(e: DevEvent) {
 export default async function Home() {
   let ongoing: ReturnType<typeof serializeEvent>[] = [];
   let ended: ReturnType<typeof serializeEvent>[] = [];
-  let lastUpdated = new Date().toISOString();
+  // ISR로 생성된 시점을 기준으로, 서버 시간(UTC)을 그대로 넘기고
+  // 클라이언트에서 Asia/Seoul 기준으로 포맷한다.
+  const lastUpdated = new Date().toISOString();
   let error = '';
 
   try {
@@ -28,16 +31,10 @@ export default async function Home() {
     const split = splitByEndDate(events);
     ongoing = split.ongoing.map(serializeEvent);
     ended = split.ended.map(serializeEvent);
-    lastUpdated = new Date().toISOString();
   } catch (e) {
     console.error('Failed to fetch events:', e);
     error = '이벤트 정보를 불러오는데 실패했습니다.';
   }
-
-  const formattedDate = new Date(lastUpdated).toLocaleString('ko-KR', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
 
   return (
     <div className="min-h-screen bg-zinc-50 font-sans dark:bg-zinc-950">
@@ -46,12 +43,7 @@ export default async function Home() {
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
             개발자 행사
           </h1>
-          <time
-            dateTime={lastUpdated}
-            className="text-sm text-zinc-500 dark:text-zinc-400"
-          >
-            {formattedDate} 갱신
-          </time>
+          <LastUpdated value={lastUpdated} />
         </div>
       </header>
 
