@@ -19,6 +19,7 @@ export interface EventItem {
 interface EventListProps {
   ongoing: EventItem[];
   ended: EventItem[];
+  onLastUpdatedChange?: (value: string) => void;
 }
 
 function EventCard({ event }: { event: EventItem }) {
@@ -86,7 +87,11 @@ function EventCardEnded({ event }: { event: EventItem }) {
   );
 }
 
-export function EventList({ ongoing, ended }: EventListProps) {
+export function EventList({
+  ongoing,
+  ended,
+  onLastUpdatedChange,
+}: EventListProps) {
   const [activeTab, setActiveTab] = useState<'ongoing' | 'ended'>('ongoing');
   const [ongoingState, setOngoingState] = useState<EventItem[]>(ongoing);
   const [endedState, setEndedState] = useState<EventItem[]>(ended);
@@ -113,6 +118,7 @@ export function EventList({ ongoing, ended }: EventListProps) {
       setOngoingState(data.ongoing);
       setEndedState(data.ended);
       setLastUpdated(data.lastUpdated);
+      onLastUpdatedChange?.(data.lastUpdated);
     } catch {
       setRefreshError('업데이트에 실패했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
