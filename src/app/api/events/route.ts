@@ -5,6 +5,9 @@ import {
   type DevEvent,
 } from '@/lib/crawler';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function serializeEvent(e: DevEvent) {
   return {
     ...e,
@@ -15,7 +18,7 @@ function serializeEvent(e: DevEvent) {
 
 export async function GET() {
   try {
-    const readme = await fetchReadme();
+    const readme = await fetchReadme({ force: true });
     const events = parseEvents(readme);
     const { ongoing, ended } = splitByEndDate(events);
 

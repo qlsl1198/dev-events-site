@@ -11,6 +11,8 @@ export interface EventItem {
   host: string;
   dateType: string;
   dateRaw: string;
+  startDate?: string | null;
+  endDate?: string | null;
   monthSection: string;
 }
 
@@ -86,53 +88,109 @@ function EventCardEnded({ event }: { event: EventItem }) {
 
 export function EventList({ ongoing, ended }: EventListProps) {
   const [activeTab, setActiveTab] = useState<'ongoing' | 'ended'>('ongoing');
+  const [ongoingState, setOngoingState] = useState<EventItem[]>(ongoing);
+  const [endedState, setEndedState] = useState<EventItem[]>(ended);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  async function handleRefresh() {
+    setIsRefreshing(true);
+    setRefreshError(null);
+
+    try {
+      const res = await fetch('/api/events', { cache: 'no-store' });
+      if (!res.ok) {
+        throw new Error(`Request failed: ${res.status}`);
+      }
+
+      const data: {
+        ongoing: EventItem[];
+        ended: EventItem[];
+        lastUpdated: string;
+      } = await res.json();
+
+      setOngoingState(data.ongoing);
+      setEndedState(data.ended);
+      setLastUpdated(data.lastUpdated);
+    } catch {
+      setRefreshError('업데이트에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
 
   return (
     <div className="w-full max-w-4xl">
-      <div className="mb-6 flex gap-2">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveTab('ongoing')}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'ongoing'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
+            }`}
+          >
+            진행 중 ({ongoingState.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('ended')}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'ended'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
+            }`}
+          >
+            종료됨 ({endedState.length})
+          </button>
+        </div>
+
         <button
-          onClick={() => setActiveTab('ongoing')}
+          onClick={handleRefresh}
+          disabled={isRefreshing}
           className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === 'ongoing'
-              ? 'bg-emerald-600 text-white'
-              : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
+            isRefreshing
+              ? 'cursor-not-allowed bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300'
+              : 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600'
           }`}
         >
-          진행 중 ({ongoing.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('ended')}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === 'ended'
-              ? 'bg-zinc-600 text-white'
-              : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
-          }`}
-        >
-          종료됨 ({ended.length})
+          {isRefreshing ? '업데이트 중...' : '업데이트'}
         </button>
       </div>
 
+      {refreshError ? (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-center text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400">
+          {refreshError}
+        </div>
+      ) : null}
+
+      {lastUpdated ? (
+        <p className="mb-4 text-center text-xs text-zinc-500 dark:text-zinc-400">
+          마지막 업데이트: {new Date(lastUpdated).toLocaleString('ko-KR')}
+        </p>
+      ) : null}
 
       {activeTab === 'ongoing' ? (
         <div className="space-y-4">
-          {ongoing.length === 0 ? (
+          {ongoingState.length === 0 ? (
             <p className="py-12 text-center text-zinc-500 dark:text-zinc-400">
               현재 진행 중인 이벤트가 없습니다.
             </p>
           ) : (
-            ongoing.map((event) => (
+            ongoingState.map((event) => (
               <EventCard key={event.id} event={event} />
             ))
           )}
         </div>
       ) : (
         <div className="space-y-4">
-          {ended.length === 0 ? (
+          {endedState.length === 0 ? (
             <p className="py-12 text-center text-zinc-500 dark:text-zinc-400">
               종료된 이벤트가 없습니다.
             </p>
           ) : (
-            ended.map((event) => (
+            endedState.map((event) => (
               <EventCardEnded key={event.id} event={event} />
             ))
           )}

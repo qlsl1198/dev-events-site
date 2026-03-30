@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+
 const README_URL =
   'https://raw.githubusercontent.com/brave-people/Dev-Event/master/README.md';
 
@@ -15,11 +18,115 @@ export interface DevEvent {
 }
 
 /**
+ * Try to load a structured JSON snapshot from the local data/ folder (if present).
+ * Returns null if no structured file is found.
+ */
+export async function fetchStructured(): Promise<DevEvent[] | null> {
+  try {
+    const dataDir = path.resolve(process.cwd(), 'data');
+    if (!fs.existsSync(dataDir)) return null;
+    const files = fs.readdirSync(dataDir).filter((f) => /dev-event-.*structured\.json$/i.test(f));
+    if (files.length === 0) return null;
+    // pick the newest file by mtime
+    const fullPaths = files.map((f) => path.join(dataDir, f));
+    fullPaths.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+    const latest = fullPaths[0];
+    const raw = fs.readFileSync(latest, 'utf8');
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    const eventsRaw = (parsed as { events?: unknown }).events;
+    if (!Array.isArray(eventsRaw)) return null;
+
+    const asStringArray = (v: unknown): string[] => {
+      if (!Array.isArray(v)) return [];
+      return v.filter((x): x is string => typeof x === 'string');
+    };
+
+    // map to DevEvent (convert date strings to Date)
+    const events: DevEvent[] = eventsRaw.map((item, idx) => {
+      if (!item || typeof item !== 'object') {
+        return {
+          id: `structured-${idx}`,
+          title: '',
+          url: '',
+          categories: [],
+          host: '',
+          dateType: '접수',
+          dateRaw: '',
+          startDate: null,
+          endDate: null,
+          monthSection: '',
+        };
+      }
+
+      const e = item as Record<string, unknown>;
+
+      const id = typeof e.id === 'string' ? e.id : `structured-${idx}`;
+      const title =
+        typeof e.title === 'string'
+          ? e.title
+          : typeof e.name === 'string'
+            ? e.name
+            : '';
+      const url =
+        typeof e.url === 'string' ? e.url : typeof e.link === 'string' ? e.link : '';
+
+      const categories = asStringArray(e.categories) || asStringArray(e.tags);
+      const host = typeof e.host === 'string' ? e.host : '';
+
+      const dateTypeCandidate = e.dateType;
+      const dateType =
+        dateTypeCandidate === '접수' || dateTypeCandidate === '일시'
+          ? dateTypeCandidate
+          : '접수';
+
+      const dateRaw =
+        typeof e.dateRaw === 'string'
+          ? e.dateRaw
+          : typeof e.date_raw === 'string'
+            ? e.date_raw
+            : '';
+
+      const startDate =
+        typeof e.startDate === 'string' && e.startDate
+          ? new Date(e.startDate)
+          : null;
+      const endDate =
+        typeof e.endDate === 'string' && e.endDate ? new Date(e.endDate) : null;
+
+      const monthSection =
+        typeof e.monthSection === 'string' ? e.monthSection : '';
+
+      return {
+        id,
+        title,
+        url,
+        categories,
+        host,
+        dateType,
+        dateRaw,
+        startDate,
+        endDate,
+        monthSection,
+      };
+    });
+    return events;
+  } catch (err) {
+    console.error('fetchStructured error', err);
+    return null;
+  }
+}
+
+/**
  * Fetch README content from GitHub
  */
-export async function fetchReadme(): Promise<string> {
+export async function fetchReadme(options?: { force?: boolean }): Promise<string> {
+  const force = options?.force ?? false;
   const res = await fetch(README_URL, {
-    next: { revalidate: 3600 }, // Revalidate every hour for daily updates
+    // `force: true`인 경우 캐시를 완전히 우회해서 최신 데이터를 가져옵니다.
+    cache: force ? 'no-store' : undefined,
+    next: { revalidate: force ? 0 : 3600 }, // Revalidate every hour for daily updates
     headers: {
       'User-Agent': 'Dev-Event-Tracker/1.0',
     },
